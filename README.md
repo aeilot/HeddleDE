@@ -2,7 +2,7 @@
 
 Heddle 是面向 agent 的无头 Wayland 桌面。名字取自织布机的综片：它把经线分组、按需提起。在这里对应每个 agent 被隔离开，只在被观测时才提起来渲染。
 
-它是 SandWeaver 研究的配套原型，设计依据见 SandWeaver 的 `docs/research.md`。
+它是 [SandWeaver](https://github.com/aeilot/SandWeaver) 研究的配套原型。设计依据、隔离方案和研究方法见 [docs](docs/README.md)。
 
 ## 状态
 
