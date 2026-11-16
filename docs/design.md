@@ -36,7 +36,7 @@
 
 Heddle 瞄准 L1，同时保留 L2 的接口。当前模型的趋势是直接看截图，L2 的成功率优势来自 2024 年的模型，需要重新确认。
 
-SandWeaver 对 OSWorld 360 个任务的分析显示，约 97% 存在不经桌面的做法（[脚本](https://github.com/aeilot/SandWeaver/blob/main/benchmarks/osworld-gui-necessity.py)）。这只说明 OSWorld 因为必须能脚本判分而偏向文件终态，不能说明真实负载中必须用 GUI 的比例低。论证桌面方向需要真实负载中 GUI 必要任务的比例，这一数据目前没有。
+SandWeaver 对 OSWorld 360 个任务的分析显示，约 97% 存在不经桌面的做法（分析脚本在 SandWeaver 本地工作区，尚未入库）。这只说明 OSWorld 因为必须能脚本判分而偏向文件终态，不能说明真实负载中必须用 GUI 的比例低。论证桌面方向需要真实负载中 GUI 必要任务的比例，这一数据目前没有。
 
 ## 面向 agent 的无头合成器（2026-11-16，设计提案）
 
