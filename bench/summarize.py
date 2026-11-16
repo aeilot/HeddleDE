@@ -18,7 +18,7 @@ def main(paths):
             for line in f:
                 r = json.loads(line)
                 groups[(r["label"], r["desktop"])].append(r)
-    hdr = ("app", "desktop", "steps", "app_cpu_0-10s", "app_cpu_rest", "desk_cpu", "shot_ms",
+    hdr = ("app", "desktop", "steps", "app_cpu_0-10s", "app_cpu_rest", "app_step_cores", "desk_step_cores", "shot_ms",
            "timeouts/errors", "stale", "frames/step", "app_pss_MiB", "desk_pss_MiB")
     print("| " + " | ".join(hdr) + " |")
     print("|" + "---|" * len(hdr))
@@ -30,7 +30,8 @@ def main(paths):
         row = (label, desk, len(steps),
                f"{mean([s['cpu']['app'][k10] for s in steps]):.3f}",
                f"{mean([s['cpu']['app']['rest'] for s in steps]):.3f}",
-               f"{mean([s['cpu']['desktop']['all'] for s in steps]):.3f}",
+               f"{mean([s.get('step_cores', {}).get('app') for s in steps]):.3f}",
+               f"{mean([s.get('step_cores', {}).get('desktop') for s in steps]):.3f}",
                f"{mean([s['shot']['latency_ms'] for s in steps]):.0f}",
                "%d/%d" % (sum(1 for s in steps if s["shot"]["status"] == "timeout"),
                           sum(1 for s in steps if s["shot"]["status"] == "error")),

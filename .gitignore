@@ -5,3 +5,4 @@ target/
 # 测量产物与会话数据不入库
 runs/
 *.log
+__pycache__/

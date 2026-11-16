@@ -98,3 +98,8 @@ class CpuSampler:
                 prev[name] = cur
             rows.append(row)
         return rows
+
+
+def session_cpu_seconds(sid: int) -> float:
+    """会话内现存进程累计的 CPU 秒数（已退出进程不计）。"""
+    return sum(t for _, t in cpu_ticks(session_pids(sid)).values()) / CLK

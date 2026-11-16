@@ -17,7 +17,34 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from desktops import HeddleDesktop, Sway, sha  # noqa: E402
-from procstat import CpuSampler, session_mem  # noqa: E402
+from procstat import CpuSampler, session_cpu_seconds, session_mem  # noqa: E402
+
+
+def kill_session(sid, grace=3.0):
+    """结束应用会话里的所有进程（含 setsid 之后仍留在会话里的子进程）。"""
+    from procstat import session_pids
+    for sig in (15, 9):
+        for pid in session_pids(sid):
+            try:
+                os.kill(pid, sig)
+            except OSError:
+                pass
+        t0 = time.monotonic()
+        while session_pids(sid) and time.monotonic() - t0 < grace:
+            time.sleep(0.1)
+
+
+def pixel_diff(a_path, b_path):
+    """两张截图不同的像素数与外接框；没有 PIL 时只比哈希。"""
+    try:
+        from PIL import Image, ImageChops
+    except ImportError:
+        return {"px": 0 if sha(a_path) == sha(b_path) else 1 << 30, "bbox": None}
+    a, b = Image.open(a_path).convert("RGB"), Image.open(b_path).convert("RGB")
+    if a.size != b.size:
+        return {"px": a.size[0] * a.size[1], "bbox": None}
+    d = ImageChops.difference(a, b).convert("L").point(lambda v: 255 if v else 0)
+    return {"px": sum(1 for v in d.getdata() if v), "bbox": d.getbbox()}
 
 
 def summarize_cpu(rows, split_s=10.0):
@@ -63,6 +90,7 @@ def main():
     p.add_argument("--settle", type=int, default=300)
     p.add_argument("--timeout", type=int, default=5000)
     p.add_argument("--check-stale", action="store_true")
+    p.add_argument("--stale-px", type=int, default=4096, help="changed pixels above which a shot counts as stale")
     p.add_argument("--out", default="runs/results.jsonl")
     p.add_argument("--shots", default=None, help="directory to keep screenshots")
     a = p.parse_args()
@@ -83,6 +111,8 @@ def main():
         for i in range(a.steps):
             step = {"i": i}
             spec = actions[i % len(actions)]
+            c0 = {"app": session_cpu_seconds(app.pid), "desktop": session_cpu_seconds(d.sid)}
+            w0 = time.monotonic()
             d.before_action()
             t0 = time.monotonic()
             d.action(spec)
@@ -94,14 +124,25 @@ def main():
             step["cpu_rows"] = rows
             path = os.path.join(shots, f"{d.name}-{i:03d}.png")
             step["shot"] = d.screenshot(path, a.settle, a.timeout)
+            # 整步（动作 + 等待 + 截图）的平均核数：observe 把渲染推到截图时，只看等待期会少算。
+            wall = time.monotonic() - w0
+            step["step_wall_s"] = round(wall, 3)
+            step["step_cores"] = {k: round((session_cpu_seconds(sid) - c0[k]) / wall, 4)
+                                  for k, sid in (("app", app.pid), ("desktop", d.sid))}
+            fs = d.frame_stats()
+            if fs:
+                step["frames"] = fs
             if a.check_stale:
                 ref = os.path.join(shots, f"{d.name}-{i:03d}-ref.png")
                 step["ref"] = d.screenshot(ref, 2000, 10000)
                 ok = step["shot"]["hash"] and step["ref"]["hash"]
-                step["stale"] = (step["ref"]["hash"] != step["shot"]["hash"]) if ok else None
-            fs = d.frame_stats()
-            if fs:
-                step["frames"] = fs
+                if ok:
+                    step["diff"] = pixel_diff(path, ref)
+                    # 光标闪烁等小面积变化不算旧画面，阈值与稳定判定一致
+                    step["stale"] = step["diff"]["px"] > a.stale_px
+                else:
+                    step["stale"] = None
+                d.frame_stats()  # 丢弃参考截图期间的帧
             rec["steps"].append(step)
             print(json.dumps({k: v for k, v in step.items() if k != "cpu_rows"}), file=sys.stderr)
         rec["mem_app"] = session_mem(app.pid)
@@ -109,10 +150,7 @@ def main():
         rec["app_alive_end"] = app.poll() is None
     finally:
         d.stop()
-        try:
-            os.killpg(app.pid, 15)
-        except Exception:  # noqa: BLE001
-            pass
+        kill_session(app.pid)
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     with open(a.out, "a") as f:
         f.write(json.dumps(rec) + "\n")

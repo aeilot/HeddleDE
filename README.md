@@ -83,6 +83,7 @@ python3 bench/summarize.py runs/results.jsonl
 - 记录省下的 CPU、卡住的应用、截图延迟。
 - 若余波以应用逻辑为主、渲染占比小，第 3 步降级为可选，重心转到内存。
 - 已观察到（2026-11-16，开发容器，sway 1.10.1、wlroots 无头后端、pixman）：`power off` 再 `power on` 后，sway 日志报 `Page-flip failed on output HEADLESS-1`，之后 grim 截图不返回。用 foot 跑 2 步，两次截图都超时。所以门槛实验不能直接照原计划用 sway 做，要么先查清并绕开这个问题（换渲染器、换 sway 版本，或在打开输出后先触发一次损坏），要么直接用 Heddle 的 `always` 对照 `observe`。
+- 已做（2026-11-16，用 Heddle `always` 对照 `observe`，详见 [docs/gate.md](docs/gate.md)）：Chromium 的余波与出帧无关，observe 下合成帧从 42 降到 16，CPU 不变，约 0.02 核。Text Editor 和 Writer 的余波主要是光标闪烁，observe 省 70–84%，但每个应用最多只省约 0.03 核。没有卡住的应用，也没有旧画面。暂定结论：第 3 步降为可选，重心转到内存。负载很轻，也没测 VS Code，需要在 x86 上用 VS Code 和带页面加载的任务复核。
 
 ### 第 2 步：自写无头合成器
 

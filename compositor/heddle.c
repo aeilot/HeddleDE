@@ -1535,6 +1535,9 @@ int main(int argc, char **argv) {
 		names[nnames++] = "a0";
 	}
 	wlr_log_init(loglevel, NULL);
+	// 单个全屏窗口时 wlroots 会直接把客户端缓冲区送上输出（direct scanout），
+	// 截图要读的是合成器自己的帧，客户端缓冲区在 pixman 下转纹理会失败。
+	setenv("WLR_SCENE_DISABLE_DIRECT_SCANOUT", "1", 0);
 
 	if (rt) {
 		snprintf(srv.runtime_dir, sizeof(srv.runtime_dir), "%s", rt);

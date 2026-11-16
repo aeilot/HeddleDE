@@ -1,0 +1,6 @@
+# 门槛实验用的应用（arm64 上能装到的 OSWorld 同类应用）。
+FROM heddle-dev
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      chromium gnome-text-editor libreoffice-writer libreoffice-gtk3 \
+      fonts-noto-core adwaita-icon-theme \
+    && rm -rf /var/lib/apt/lists/*
