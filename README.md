@@ -6,7 +6,42 @@ Heddle 是面向 agent 的无头 Wayland 桌面。名字取自织布机的综片
 
 ## 状态
 
-只有计划，尚无代码。以下全部是设计提案，未经验证。标为"待确认"的条目来自已有知识，还没有对照上游文档或实测核对。
+原型代码已写好，只在开发容器（Debian trixie、arm64、wlroots 0.18）里用 foot 终端做过冒烟测试；OSWorld 应用上的测量都还没做。下面的计划部分仍是设计提案，标为"待确认"的条目来自已有知识，还没有对照上游文档或实测核对。
+
+| 目录 | 内容 | 对应计划 |
+|---|---|---|
+| [compositor](compositor) | 无头合成器：按 agent 的套接字、输出、seat，全局对象过滤，控制套接字，`always`/`observe` 出帧策略 | 第 2、3 步 |
+| [control](control) | Python 控制端：客户端库、命令行、pyautogui 替身、OSWorld 风格 HTTP 服务、窗口坐标换算 | 第 0 步 |
+| [scripts/heddle-run](scripts/heddle-run) | bubblewrap 启动器：每个 agent 独立的 HOME、XDG、运行目录、/tmp、D-Bus，PID/IPC/UTS 命名空间，网络默认关闭，可选 pasta | 第 4 步 |
+| [bench](bench) | 测量脚本：应用探测（纯 Wayland 还是要 Xwayland）、按"动作 → 等待 → 截图"循环采集逐进程 CPU、内存、截图延迟、旧画面、每步帧数；被测桌面可选 sway、sway 关输出、Heddle 各策略 | 第 1 步、门槛、第 3 步 |
+| [tests/smoke.sh](tests/smoke.sh) | 冒烟测试 | |
+| [dev](dev) | 开发容器 | |
+
+冒烟测试已验证（2026-11-16，容器内）：
+
+- 两个 agent 各自只看到一个 seat、一个输出，看不到 screencopy、虚拟输入、data-control。
+- 两个 foot 分别经 heddle-run 启动在各自的 bwrap 里；向 a0 敲入的命令只在 a0 的 /tmp 生效。
+- 截图判为稳定，尺寸正确，两个 agent 画面不同。
+- observe 策略下，动作后的放行期内有合成，放行期过后不再合成。
+- pyautogui 替身能执行 `hotkey`、`press`、`click`。
+
+用法：
+
+```bash
+docker build -t heddle-dev dev
+```
+
+```bash
+docker run --rm --privileged -v "$PWD":/src heddle-dev tests/smoke.sh
+```
+
+```bash
+python3 bench/run.py --desktop heddle-observe --heddle build/heddle --app 'foot sh' --steps 5 --wait 24 --action 'type:ls' --action key:Return --check-stale
+```
+
+```bash
+python3 bench/summarize.py runs/results.jsonl
+```
 
 ## 目标
 
@@ -47,13 +82,14 @@ Heddle 是面向 agent 的无头 Wayland 桌面。名字取自织布机的综片
 - 观测之间关闭输出电源（`output <名字> power off`），截图前打开。预期关闭期间不发帧回调（待确认）。
 - 记录省下的 CPU、卡住的应用、截图延迟。
 - 若余波以应用逻辑为主、渲染占比小，第 3 步降级为可选，重心转到内存。
+- 已观察到（2026-11-16，开发容器，sway 1.10.1、wlroots 无头后端、pixman）：`power off` 再 `power on` 后，sway 日志报 `Page-flip failed on output HEADLESS-1`，之后 grim 截图不返回。用 foot 跑 2 步，两次截图都超时。所以门槛实验不能直接照原计划用 sway 做，要么先查清并绕开这个问题（换渲染器、换 sway 版本，或在打开输出后先触发一次损坏），要么直接用 Heddle 的 `always` 对照 `observe`。
 
 ### 第 2 步：自写无头合成器
 
 - 提供按 agent 截图和注入输入的控制接口。输入直接由控制接口送进对应的 seat，不经虚拟键盘协议。
 - 每个 agent 一个 Wayland 套接字。合成器按客户端过滤全局对象，应用只看到自己 agent 的 seat 和输出，从而绕开工具包对多 seat 支持不完善的问题。
 - 统计每个客户端每步提交了多少帧。
-- 起点从 tinywl、cage、labwc 中选，见"待定"。
+- 起点：按 tinywl 的结构自写，见"已定"。
 
 ### 第 3 步：按观测出帧
 
@@ -85,10 +121,10 @@ Heddle 是面向 agent 的无头 Wayland 桌面。名字取自织布机的综片
 ## 已定
 
 - 底层库：wlroots（C）。理由：成熟，自带无头后端和 screencopy，sway 的多 seat 支持建在它上面。
+- 第 2 步的起点：按 tinywl 的结构自写。cage 是单应用 kiosk，labwc 带完整的人用窗口管理，改造量都大于在 tinywl 结构上补协议。理由见 [compositor](compositor/README.md#结构)。
 
 ## 待定
 
 - X11 应用：OSWorld 镜像中的 GIMP 2.10 和 VLC 3 只能在 X11 下运行（待确认）。要么接 Xwayland，合成器兼任 X11 窗口管理器；要么升级到 GIMP 3 和 VLC 4，偏离 OSWorld 环境。
-- 第 2 步的起点：tinywl 最小但缺的协议多，cage 和 labwc 更接近可用。
 - 驱动精简桌面的方式：在线模型，或按控件定位的脚本。
 - 许可证：wlroots 是 MIT，沿用 MIT 最省事。

@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+# 在 bubblewrap 命名空间里为某个 agent 启动应用（第 4 步）。
+#
+# 每个 agent 一套：HOME、XDG_*、XDG_RUNTIME_DIR、/tmp、D-Bus 会话总线（dbus-run-session，
+# 无障碍总线由它按需激活）、PID/IPC/UTS 命名空间，默认无网络。所有 agent 共用只读的 /usr。
+# 应用只看到自己 agent 的 Wayland 套接字，挂在 $XDG_RUNTIME_DIR/wayland-0。
+#
+#   heddle-run --agent a0 --socket $XDG_RUNTIME_DIR/heddle/a0/wayland-0 [--net none|host|pasta] \
+#              [--state DIR] [--workspace DIR] [--ro PATH]... -- code --user-data-dir ~/.vscode-data
+set -euo pipefail
+
+agent="" socket="" net="none" state_root="${HEDDLE_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/heddle}"
+workspace="" extra_ro=() fresh=0
+usage() { sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --agent) agent="$2"; shift 2 ;;
+    --socket) socket="$2"; shift 2 ;;
+    --net) net="$2"; shift 2 ;;
+    --state) state_root="$2"; shift 2 ;;
+    --workspace) workspace="$2"; shift 2 ;;
+    --ro) extra_ro+=("$2"); shift 2 ;;
+    --fresh) fresh=1; shift ;;
+    -h|--help) usage 0 ;;
+    --) shift; break ;;
+    *) echo "heddle-run: unknown option $1" >&2; usage 1 ;;
+  esac
+done
+[[ -n "$agent" && -n "$socket" && $# -gt 0 ]] || usage 1
+[[ "$agent" =~ ^[A-Za-z0-9_.-]+$ ]] || { echo "heddle-run: bad agent name" >&2; exit 1; }
+[[ -S "$socket" ]] || { echo "heddle-run: $socket is not a socket" >&2; exit 1; }
+command -v bwrap >/dev/null || { echo "heddle-run: bwrap not found" >&2; exit 1; }
+
+uid=$(id -u)
+state="$state_root/agents/$agent"
+[[ $fresh -eq 1 ]] && rm -rf "$state"
+mkdir -p "$state/home" "$state/tmp" "$state/runtime"
+chmod 700 "$state" "$state/runtime"
+home_in="${HOME:-/home/agent}"
+rt_in="/run/user/$uid"
+
+args=(
+  --die-with-parent --new-session
+  --unshare-pid --unshare-ipc --unshare-uts --unshare-cgroup-try
+  --hostname "heddle-$agent"
+  --ro-bind /usr /usr
+  --ro-bind /etc /etc
+  --proc /proc
+  --dev /dev
+  --ro-bind-try /sys /sys
+  --tmpfs /run
+  --tmpfs /var
+  --ro-bind-try /var/cache/fontconfig /var/cache/fontconfig
+  --ro-bind-try /opt /opt
+  --bind "$state/runtime" "$rt_in"
+  --bind "$state/tmp" /tmp
+  --bind "$state/home" "$home_in"
+  --ro-bind "$socket" "$rt_in/wayland-0"
+  --chdir "$home_in"
+  --clearenv
+  --setenv PATH "/usr/local/bin:/usr/bin:/bin"
+  --setenv HOME "$home_in"
+  --setenv USER "${USER:-agent}"
+  --setenv LANG "${LANG:-C.UTF-8}"
+  --setenv XDG_RUNTIME_DIR "$rt_in"
+  --setenv WAYLAND_DISPLAY wayland-0
+  --setenv XDG_SESSION_TYPE wayland
+  --setenv XDG_CONFIG_HOME "$home_in/.config"
+  --setenv XDG_DATA_HOME "$home_in/.local/share"
+  --setenv XDG_CACHE_HOME "$home_in/.cache"
+  --setenv XDG_STATE_HOME "$home_in/.local/state"
+  --setenv HEDDLE_AGENT "$agent"
+  # 工具包优先走 Wayland
+  --setenv GDK_BACKEND wayland
+  --setenv QT_QPA_PLATFORM wayland
+  --setenv SDL_VIDEODRIVER wayland
+  --setenv MOZ_ENABLE_WAYLAND 1
+  --setenv ELECTRON_OZONE_PLATFORM_HINT wayland
+  --setenv NO_AT_BRIDGE 0
+)
+# 合并 /usr 的发行版里 /bin、/lib 是符号链接
+for d in bin sbin lib lib32 lib64 libx32; do
+  if [[ -L "/$d" ]]; then args+=(--symlink "$(readlink "/$d")" "/$d")
+  elif [[ -d "/$d" ]]; then args+=(--ro-bind "/$d" "/$d"); fi
+done
+for p in "${extra_ro[@]}"; do args+=(--ro-bind "$p" "$p"); done
+if [[ -n "$workspace" ]]; then
+  mkdir -p "$workspace"
+  args+=(--bind "$workspace" "$home_in/workspace")
+fi
+
+run=(bwrap "${args[@]}")
+case "$net" in
+  none) run=(bwrap --unshare-net "${args[@]}") ;;
+  host) ;;
+  # pasta 建新的网络命名空间并提供用户态出口；出口策略待加（见 README 第 4 步）。
+  pasta) command -v pasta >/dev/null || { echo "heddle-run: pasta not found" >&2; exit 1; }
+         run=(pasta --config-net --quiet -- bwrap "${args[@]}") ;;
+  *) echo "heddle-run: bad --net $net" >&2; exit 1 ;;
+esac
+
+if command -v dbus-run-session >/dev/null; then
+  exec "${run[@]}" -- dbus-run-session -- "$@"
+else
+  exec "${run[@]}" -- "$@"
+fi
