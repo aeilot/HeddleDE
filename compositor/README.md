@@ -1,6 +1,6 @@
 # heddle 合成器
 
-计划第 2、3 步的原型：基于 wlroots 0.18 的无头合成器，单个 C 文件。起点按 tinywl 的结构自写（"待定"中三选一的结果，理由见下）。
+计划第 2、3 步的原型：基于 wlroots 0.18 的无头合成器，单个 C 文件。起点按 tinywl 的结构自写（原 README "Open" 中三选一的结果，现列在 "Decided"，理由见下）。
 
 ## 构建与运行
 
@@ -43,7 +43,7 @@ build/heddle -a a0 -a a1 -s 1920x1080 -p observe -g 2000
 - 不提供 screencopy、虚拟键盘、虚拟指针、data-control：截图和输入只走控制套接字。
 - 剪贴板与主选区按 seat 分开。
 - 渲染固定为 pixman，客户端只能用 wl_shm。
-- 没有 Xwayland（见 README"待定"）。
+- 没有 Xwayland（见 README "Open"）。
 
 为什么不从 cage 或 labwc 起步：cage 是单应用 kiosk，多输出多 seat 要大改；labwc 带完整的人用窗口管理（菜单、主题、配置），删比加多。需要的协议在 wlroots 里大多一行创建，tinywl 的结构更容易插入按 agent 的过滤和出帧控制。缺的协议（输入法、xdg-decoration、xdg-output、fractional-scale、cursor-shape 等）按应用需要再加。
 
@@ -80,7 +80,7 @@ Python 封装见 [control](../control)。
 4. 截图完成后，若不在放行期内，立即停帧。
 5. `-S` 时，停帧同时给窗口发 `suspended`，放行时撤回。
 
-已知局限（与 README"已知风险"对应）：
+已知局限（与 README "Known risks" 对应）：
 
 - 停帧期间仍照常向客户端发输入和配置事件；被冻结（cgroup freezer）的客户端不读套接字，会写满缓冲区，此原型没有处理。
 - 稳定判定只看表面提交的缓冲损坏，不看子表面以外的状态变化（例如无损坏的窗口移动）。

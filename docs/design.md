@@ -43,8 +43,8 @@ SandWeaver 对 OSWorld 360 个任务的分析显示，约 97% 存在不经桌面
 在 Wayland 下，合成器负责管理窗口、拼合各应用的缓冲区、把输入分给对应的应用；应用彼此看不到对方的画面，截图和输入注入都要经过合成器。因此它是做按 agent 截图、输入、隔离和渲染控制的天然位置。
 
 - 不以 Xfce 为底座：xfwm4 只支持 X11；Xfce 的 Wayland 合成器 [xfwl4](https://docs.xfce.org/xfce/xfwl4/start) 基于 Smithay（Rust），官方仍标为实验性（[路线图](https://wiki.xfce.org/releng/wayland_roadmap)）。面板、桌面、通知、电源管理对 agent 无用，所以"新桌面"实质上是一个新合成器加会话与设置管理。
-- 只实现应用需要的协议（xdg-shell、wl_shm、wl_seat、剪贴板、输入法），不接 DRM/KMS 和 libinput；控件树走 AT-SPI，与合成器无关。底层库已选 wlroots，理由见 [README](../README.md#已定)。
-- 按观测出帧：把"按下次观测截止期调度、截图前判定画面稳定"和"不可见就不渲染"合成一个机制。协议讨论建议不可见表面不发回调（[wayland#266](https://gitlab.freedesktop.org/wayland/wayland/-/issues/266)）；Mutter 只对被录屏的隐藏表面破例发回调（[MR 2789](https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/2789)）。没找到把"只在观测时出帧"作为默认策略的合成器。具体策略见 [README](../README.md#按观测出帧的策略)。
+- 只实现应用需要的协议（xdg-shell、wl_shm、wl_seat、剪贴板、输入法），不接 DRM/KMS 和 libinput；控件树走 AT-SPI，与合成器无关。底层库已选 wlroots，理由见 [README](../README.md#decided)。
+- 按观测出帧：把"按下次观测截止期调度、截图前判定画面稳定"和"不可见就不渲染"合成一个机制。协议讨论建议不可见表面不发回调（[wayland#266](https://gitlab.freedesktop.org/wayland/wayland/-/issues/266)）；Mutter 只对被录屏的隐藏表面破例发回调（[MR 2789](https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/2789)）。没找到把"只在观测时出帧"作为默认策略的合成器。具体策略见 [README](../README.md#frame-on-observation-policy)。
 - 已知风险：拿不到回调的 Firefox 和 GDK 会卡住（[Mozilla 1711244](https://bugzilla.mozilla.org/show_bug.cgi?id=1711244)，[Weston EGL](https://gitlab.freedesktop.org/wayland/weston/-/issues/597)）；光标和拖放表面从不被绘制，回调若绑定绘制就永远不发（[GNOME 739163](https://bugzilla.gnome.org/show_bug.cgi?id=739163)）；Xwayland 应用和自带定时器的视频、动画不受帧回调约束；截图要等应用重画，用延迟换 CPU。
 - 前提待测：动作后约 10 s 的余波里，渲染占多少、应用逻辑（页面加载、排版、语言服务器）占多少。若以应用逻辑为主，压帧收益有限。
 

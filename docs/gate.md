@@ -1,6 +1,6 @@
 # 门槛实验：Heddle always 对照 observe（2026-11-16，已测）
 
-问题：按观测出帧省下的 CPU 有多大？动作后的余波里，渲染占多少，应用逻辑占多少？结论决定第 3 步是否值得继续做，还是把重心转到内存（见 [README](../README.md#门槛先确认按观测出帧值得做)）。
+问题：按观测出帧省下的 CPU 有多大？动作后的余波里，渲染占多少，应用逻辑占多少？结论决定第 3 步是否值得继续做，还是把重心转到内存（见 [README](../README.md#gate-confirm-frames-on-observation-are-worth-it)）。
 
 原计划用 sway 关输出来做这一步，但 sway 1.10.1 无头加 pixman 下，再打开输出后截图会卡住，所以改用 Heddle 自己的两种策略对照。
 

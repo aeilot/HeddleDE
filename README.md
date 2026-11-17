@@ -1,31 +1,31 @@
 # Heddle
 
-Heddle 是面向 agent 的无头 Wayland 桌面。名字取自织布机的综片：它把经线分组、按需提起。在这里对应每个 agent 被隔离开，只在被观测时才提起来渲染。
+Heddle is a headless Wayland desktop for agents. The name comes from the heddles on a loom, which separate the warp threads into groups and lift them on demand. Here, each agent is isolated, and its desktop is only lifted up and rendered when it is observed.
 
-它是 [SandWeaver](https://github.com/aeilot/SandWeaver) 研究的配套原型。设计依据、隔离方案和研究方法见 [docs](docs/README.md)。
+It is the companion prototype to the [SandWeaver](https://github.com/aeilot/SandWeaver) research. The design rationale, isolation approach and research method are in [docs](docs/README.md) (in Chinese).
 
-## 状态
+## Status
 
-原型代码已写好，只在开发容器（Debian trixie、arm64、wlroots 0.18）里用 foot 终端做过冒烟测试；OSWorld 应用上的测量都还没做。下面的计划部分仍是设计提案，标为"待确认"的条目来自已有知识，还没有对照上游文档或实测核对。
+The prototype code is written. It has been smoke-tested only in the dev container (Debian trixie, arm64, wlroots 0.18) with the foot terminal, plus one gate experiment with three desktop apps (see below). No measurements on OSWorld tasks have been made yet. The plan below is still a design proposal. Items marked "unverified" come from prior knowledge and have not yet been checked against upstream documentation or measured.
 
-| 目录 | 内容 | 对应计划 |
+| Directory | Contents | Plan step |
 |---|---|---|
-| [compositor](compositor) | 无头合成器：按 agent 的套接字、输出、seat，全局对象过滤，控制套接字，`always`/`observe` 出帧策略 | 第 2、3 步 |
-| [control](control) | Python 控制端：客户端库、命令行、pyautogui 替身、OSWorld 风格 HTTP 服务、窗口坐标换算 | 第 0 步 |
-| [scripts/heddle-run](scripts/heddle-run) | bubblewrap 启动器：每个 agent 独立的 HOME、XDG、运行目录、/tmp、D-Bus，PID/IPC/UTS 命名空间，网络默认关闭，可选 pasta | 第 4 步 |
-| [bench](bench) | 测量脚本：应用探测（纯 Wayland 还是要 Xwayland）、按"动作 → 等待 → 截图"循环采集逐进程 CPU、内存、截图延迟、旧画面、每步帧数；被测桌面可选 sway、sway 关输出、Heddle 各策略 | 第 1 步、门槛、第 3 步 |
-| [tests/smoke.sh](tests/smoke.sh) | 冒烟测试 | |
-| [dev](dev) | 开发容器 | |
+| [compositor](compositor) | Headless compositor: per-agent sockets, outputs and seats, global filtering, control socket, `always`/`observe` frame policies | Steps 2, 3 |
+| [control](control) | Python control side: client library, CLI, pyautogui shim, OSWorld-style HTTP server, window coordinate translation | Step 0 |
+| [scripts/heddle-run](scripts/heddle-run) | bubblewrap launcher: per-agent HOME, XDG dirs, runtime dir, /tmp and D-Bus; PID/IPC/UTS namespaces; network off by default, optional pasta | Step 4 |
+| [bench](bench) | Measurement scripts: app probe (pure Wayland or Xwayland), an "action → wait → screenshot" loop collecting per-process CPU, memory, screenshot latency, stale frames and frames per step; desktops under test can be sway, sway with output power-off, or Heddle with each policy | Step 1, gate, step 3 |
+| [tests/smoke.sh](tests/smoke.sh) | Smoke tests | |
+| [dev](dev) | Dev container | |
 
-冒烟测试已验证（2026-11-16，容器内）：
+Verified by the smoke tests (2026-11-16, in the container):
 
-- 两个 agent 各自只看到一个 seat、一个输出，看不到 screencopy、虚拟输入、data-control。
-- 两个 foot 分别经 heddle-run 启动在各自的 bwrap 里；向 a0 敲入的命令只在 a0 的 /tmp 生效。
-- 截图判为稳定，尺寸正确，两个 agent 画面不同。
-- observe 策略下，动作后的放行期内有合成，放行期过后不再合成。
-- pyautogui 替身能执行 `hotkey`、`press`、`click`。
+- Two agents each see exactly one seat and one output, and see no screencopy, virtual input or data-control globals.
+- Two foot instances are launched through heddle-run, each in its own bwrap; a command typed into a0 only takes effect in a0's /tmp.
+- Screenshots are judged stable, have the right size, and differ between the two agents.
+- Under the observe policy, frames are composited during the grace period after an action and stop after it.
+- The pyautogui shim can run `hotkey`, `press` and `click`.
 
-用法：
+Usage:
 
 ```bash
 docker build -t heddle-dev dev
@@ -43,89 +43,89 @@ python3 bench/run.py --desktop heddle-observe --heddle build/heddle --app 'foot 
 python3 bench/summarize.py runs/results.jsonl
 ```
 
-## 目标
+## Goals
 
-- 无头：不接显卡和显示器（DRM/KMS），也不接真实输入设备（libinput），只在内存里合成画面。
-- 按 agent 的截图、输入和 seat：每个 agent 有自己的焦点、光标、剪贴板和输出。
-- 按观测出帧：平时不让应用重绘，agent 请求截图时才放行，等画面稳定后合成并截图。具体策略见"按观测出帧的策略"。
-- 应用隔离：每个 agent 的应用放进 bubblewrap 命名空间，有独立的 HOME、XDG 目录、`XDG_RUNTIME_DIR`、D-Bus 会话总线、无障碍总线、PID 和网络。
-- 语义接口：保留 AT-SPI 控件树，并由合成器导出窗口位置，供坐标换算。
-- 内存共享：所有 agent 共用只读的 `/usr`，文件页只存一份。
+- Headless: no GPU or display (DRM/KMS) and no real input devices (libinput); frames are composited in memory only.
+- Per-agent screenshots, input and seats: each agent has its own focus, pointer, clipboard and output.
+- Frames on observation: apps are normally not allowed to redraw; frames are released only when an agent asks for a screenshot, and the screenshot is taken once the picture is stable. See "Frame-on-observation policy".
+- App isolation: each agent's apps run in bubblewrap namespaces with their own HOME, XDG dirs, `XDG_RUNTIME_DIR`, D-Bus session bus, accessibility bus, PIDs and network.
+- Semantic interface: keep the AT-SPI widget tree, and have the compositor export window positions for coordinate translation.
+- Memory sharing: all agents share a read-only `/usr`, so file pages are stored once.
 
-不做：面板、桌面图标、通知、电源管理、屏保。X11 应用是否支持见"待定"。
+Out of scope: panels, desktop icons, notifications, power management, screensavers. Whether X11 apps are supported is under "Open".
 
-## 计划
+## Plan
 
-研究方法是先把已有方案原样移植过来，测量收益，再找出移植后出现的新问题。每一步都同时记录收益（内存、CPU、延迟）和损害（卡住、画面过时、任务失败）。
+The research method is to first port existing approaches as they are, measure the gain, and then find the new problems the port introduces. Every step records both the gains (memory, CPU, latency) and the harm (hung apps, stale frames, failed tasks).
 
-### 第 0 步：负载与控制端
+### Step 0: Workload and control
 
-第 1 步之前要先定下负载由什么驱动、怎么判对错。
+Before step 1, decide what drives the workload and how to judge correctness.
 
-- 公开的 OSWorld 轨迹是在 GNOME 1080p 上录的，换桌面后点击坐标会错位，不能直接回放。按 `docs/research.md` 的忠实度对照分三级：虚拟机、同样的 GNOME 用户态放进容器、精简桌面。精简桌面一级需要在线模型或按控件定位的脚本来驱动。
-- OSWorld 虚拟机内的控制服务依赖 pyautogui 和 X11 截图（待确认），在 Wayland 下要重写：截图走 screencopy，输入走虚拟键盘和虚拟指针协议。
-- Wayland 下 AT-SPI 只给窗口内坐标（待确认）。靠控件树坐标点击的 agent 需要窗口位置来换算。
-- 正确性用 OSWorld 评测器判定。
+- The public OSWorld trajectories were recorded on GNOME at 1080p. On a different desktop the click coordinates are off, so they cannot be replayed directly. Following the fidelity ladder in `docs/research.md`, there are three levels: VM, the same GNOME userland in a container, and a minimal desktop. The minimal-desktop level needs an online model or widget-locating scripts to drive it.
+- The control server inside the OSWorld VM relies on pyautogui and X11 screenshots (unverified) and has to be rewritten for Wayland: screenshots via screencopy, input via the virtual keyboard and virtual pointer protocols.
+- Under Wayland, AT-SPI only gives window-relative coordinates (unverified). Agents that click by widget-tree coordinates need window positions to translate them.
+- Correctness is judged by the OSWorld evaluators.
 
-### 第 1 步：基线
+### Step 1: Baseline
 
-用不改代码的现成合成器的无头模式，运行 OSWorld 中的应用（Chrome、LibreOffice、GIMP、VS Code、Thunderbird、VLC）。
+Run the OSWorld apps (Chrome, LibreOffice, GIMP, VS Code, Thunderbird, VLC) in the headless mode of an unmodified off-the-shelf compositor.
 
-- 合成器：sway。它是平铺布局，与 GNOME 的堆叠窗口不同；labwc 是堆叠式，也基于 wlroots，可作备选。
-- 渲染口径固定为 pixman 加客户端软件渲染，保证数字可比。
-- 测量：哪些应用能在纯 Wayland 下运行，哪些需要 Xwayland；每个实例的内存；动作后按进程的 CPU 余波。
+- Compositor: sway. It is tiling, unlike GNOME's stacking windows; labwc is stacking and also wlroots-based, as a fallback.
+- Rendering is fixed to pixman plus client-side software rendering so the numbers are comparable.
+- Measure: which apps run on pure Wayland and which need Xwayland; memory per instance; per-process CPU aftermath after an action.
 
-### 门槛：先确认按观测出帧值得做
+### Gate: confirm frames on observation are worth it
 
-`docs/research.md` 的估算是内存先于 CPU 成为密度瓶颈，而按观测出帧省的是 CPU。写合成器之前先用现成的 sway 做一次低成本验证：
+The estimate in `docs/research.md` is that memory becomes the density bottleneck before CPU, while frames on observation save CPU. Before writing a compositor, run a cheap check with off-the-shelf sway:
 
-- 观测之间关闭输出电源（`output <名字> power off`），截图前打开。预期关闭期间不发帧回调（待确认）。
-- 记录省下的 CPU、卡住的应用、截图延迟。
-- 若余波以应用逻辑为主、渲染占比小，第 3 步降级为可选，重心转到内存。
-- 已观察到（2026-11-16，开发容器，sway 1.10.1、wlroots 无头后端、pixman）：`power off` 再 `power on` 后，sway 日志报 `Page-flip failed on output HEADLESS-1`，之后 grim 截图不返回。用 foot 跑 2 步，两次截图都超时。所以门槛实验不能直接照原计划用 sway 做，要么先查清并绕开这个问题（换渲染器、换 sway 版本，或在打开输出后先触发一次损坏），要么直接用 Heddle 的 `always` 对照 `observe`。
-- 已做（2026-11-16，用 Heddle `always` 对照 `observe`，详见 [docs/gate.md](docs/gate.md)）：Chromium 的余波与出帧无关，observe 下合成帧从 42 降到 16，CPU 不变，约 0.02 核。Text Editor 和 Writer 的余波主要是光标闪烁，observe 省 70–84%，但每个应用最多只省约 0.03 核。没有卡住的应用，也没有旧画面。暂定结论：第 3 步降为可选，重心转到内存。负载很轻，也没测 VS Code，需要在 x86 上用 VS Code 和带页面加载的任务复核。
+- Power off the output between observations (`output <name> power off`) and power it on before a screenshot. Expect no frame callbacks while it is off (unverified).
+- Record the CPU saved, apps that hang, and screenshot latency.
+- If the aftermath is mostly app logic and rendering is a small share, step 3 becomes optional and the focus moves to memory.
+- Observed (2026-11-16, dev container, sway 1.10.1, wlroots headless backend, pixman): after `power off` then `power on`, sway logs `Page-flip failed on output HEADLESS-1`, and grim screenshots never return. Running foot for 2 steps, both screenshots timed out. So the gate cannot be run with sway as originally planned: either find and work around this (another renderer, another sway version, or forcing damage after the output is powered on), or compare Heddle's own `always` and `observe` directly.
+- Done (2026-11-16, Heddle `always` vs `observe`, details in [docs/gate.md](docs/gate.md)): Chromium's aftermath is unrelated to frames. Under observe, composited frames drop from 42 to 16 while CPU stays at about 0.02 cores. The aftermath of Text Editor and Writer is mainly cursor blinking; observe saves 70–84%, but at most about 0.03 cores per app. No apps hung and no stale frames were seen. Tentative conclusion: step 3 becomes optional and the focus moves to memory. The workload was light and VS Code was not tested; this needs to be rechecked on x86 with VS Code and tasks that load pages.
 
-### 第 2 步：自写无头合成器
+### Step 2: Custom headless compositor
 
-- 提供按 agent 截图和注入输入的控制接口。输入直接由控制接口送进对应的 seat，不经虚拟键盘协议。
-- 每个 agent 一个 Wayland 套接字。合成器按客户端过滤全局对象，应用只看到自己 agent 的 seat 和输出，从而绕开工具包对多 seat 支持不完善的问题。
-- 统计每个客户端每步提交了多少帧。
-- 起点：按 tinywl 的结构自写，见"已定"。
+- Provide a control interface for per-agent screenshots and input injection. Input goes from the control interface straight into the right seat, not through the virtual keyboard protocol.
+- One Wayland socket per agent. The compositor filters globals per client, so an app only sees its own agent's seat and output. This sidesteps incomplete multi-seat support in toolkits.
+- Count how many frames each client commits per step.
+- Starting point: written from scratch following the structure of tinywl; see "Decided".
 
-### 第 3 步：按观测出帧
+### Step 3: Frames on observation
 
-加入下一节的策略，测量节省的 CPU、卡住的应用、截到旧画面的次数和截图延迟。
+Add the policy from the next section, and measure the CPU saved, apps that hang, how often a screenshot catches a stale frame, and screenshot latency.
 
-### 第 4 步：多 agent 与隔离
+### Step 4: Multiple agents and isolation
 
-- 多 seat 加 bubblewrap 隔离，同时运行多个 VS Code 等应用，测量内存曲线。
-- 对照组：每个 agent 一个独立的最小合成器。`docs/research.md` 估计共享合成器只省几十 MiB，需要用这组对照说明共享是否值得。
-- 网络：隔离网络命名空间后默认没有连接，用 pasta 或 slirp4netns 提供出口并加出口策略。
-- 本机容量：WSL 当前 7.9 GB 内存，按每个 VS Code 0.5–1 GiB 估只能跑 6–8 个，需要先调高 `.wslconfig`。
+- Multiple seats plus bubblewrap isolation, running several VS Code instances and other apps at once, and measuring the memory curve.
+- Control group: one separate minimal compositor per agent. `docs/research.md` estimates a shared compositor saves only tens of MiB; this control shows whether sharing is worth it.
+- Network: after isolating the network namespace there is no connectivity by default; use pasta or slirp4netns for egress and add an egress policy.
+- Local capacity: WSL currently has 7.9 GB of memory. At 0.5–1 GiB per VS Code that fits only 6–8 instances, so `.wslconfig` needs to be raised first.
 
-## 按观测出帧的策略
+## Frame-on-observation policy
 
-只发一次帧回调、合成一次是不够的，原因和对应做法如下。
+Sending a single frame callback and compositing once is not enough. The reasons and what to do about each:
 
-- 菜单动画、页面加载需要连续多帧。观测时启动一段帧时钟，直到一段时间内没有新的损坏区域，或者超时；返回截图时注明是稳定还是超时。光标闪烁会让画面永远不稳定，需要按损坏面积设阈值。
-- 依赖帧时钟的应用逻辑会被推迟到观测时才执行，把原本空闲的模型等待时间变成截图延迟。动作之后先放行几秒，再停止出帧。
-- 拿不到帧回调的客户端可能卡住。除了停发 `wl_surface.frame` 回调，还可以用 xdg-shell 的 `suspended` 状态告诉应用窗口不可见（待确认各工具包的支持情况），两种手段都要测。
-- 停帧期间控件树是否仍然更新，需要实测。
+- Menu animations and page loads need many consecutive frames. On observation, start a frame clock and run it until no new damage arrives for a while, or until a timeout; the screenshot reply says whether it was stable or timed out. Cursor blinking would keep the picture from ever settling, so set a threshold on damage area.
+- App logic driven by the frame clock gets postponed until observation, turning idle model-wait time into screenshot latency. After an action, release frames for a few seconds before stopping.
+- Clients that get no frame callbacks may hang. Besides withholding `wl_surface.frame` callbacks, the xdg-shell `suspended` state can tell an app its window is not visible (toolkit support unverified). Test both.
+- Whether the widget tree keeps updating while frames are stopped needs to be measured.
 
-## 已知风险
+## Known risks
 
-- 共享合成器是所有 agent 的可信计算基，它崩溃会影响全部 agent。
-- 被冻结的客户端不读套接字，合成器持续发事件会写满缓冲区，连接会被断开。
-- Xwayland 应用、自带定时器的视频和动画不受帧回调约束。
-- Chromium 自带沙盒在 bubblewrap 内能否正常工作，需要实测。
+- The shared compositor is in the trusted computing base of every agent; if it crashes, all agents are affected.
+- A frozen client does not read its socket. If the compositor keeps sending events, the buffer fills up and the connection is dropped.
+- Xwayland apps and video or animations with their own timers are not bound by frame callbacks.
+- Whether Chromium's own sandbox works inside bubblewrap needs to be tested.
 
-## 已定
+## Decided
 
-- 底层库：wlroots（C）。理由：成熟，自带无头后端和 screencopy，sway 的多 seat 支持建在它上面。
-- 第 2 步的起点：按 tinywl 的结构自写。cage 是单应用 kiosk，labwc 带完整的人用窗口管理，改造量都大于在 tinywl 结构上补协议。理由见 [compositor](compositor/README.md#结构)。
+- Base library: wlroots (C). Reason: mature, ships a headless backend and screencopy, and sway's multi-seat support is built on it.
+- Starting point for step 2: written from scratch following the structure of tinywl. cage is a single-app kiosk, and labwc carries full window management for humans; both need more rework than adding protocols to the tinywl structure. Reasons in [compositor](compositor/README.md#结构).
 
-## 待定
+## Open
 
-- X11 应用：OSWorld 镜像中的 GIMP 2.10 和 VLC 3 只能在 X11 下运行（待确认）。要么接 Xwayland，合成器兼任 X11 窗口管理器；要么升级到 GIMP 3 和 VLC 4，偏离 OSWorld 环境。
-- 驱动精简桌面的方式：在线模型，或按控件定位的脚本。
-- 许可证：wlroots 是 MIT，沿用 MIT 最省事。
+- X11 apps: GIMP 2.10 and VLC 3 in the OSWorld image only run under X11 (unverified). Either add Xwayland and have the compositor double as an X11 window manager, or upgrade to GIMP 3 and VLC 4 and diverge from the OSWorld environment.
+- How to drive the minimal desktop: an online model, or widget-locating scripts.
+- License: wlroots is MIT; staying with MIT is simplest.
