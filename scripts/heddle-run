@@ -6,12 +6,14 @@
 # 应用只看到自己 agent 的 Wayland 套接字，挂在 $XDG_RUNTIME_DIR/wayland-0。
 #
 #   heddle-run --agent a0 --socket $XDG_RUNTIME_DIR/heddle/a0/wayland-0 [--net none|host|pasta] \
-#              [--state DIR] [--workspace DIR] [--ro PATH]... -- code --user-data-dir ~/.vscode-data
+#              [--state DIR] [--workspace DIR] [--ro PATH]... [--usr DIR] -- code --user-data-dir ~/.vscode-data
+#
+# --usr DIR 用 DIR 代替宿主的 /usr（测量不共享 /usr 时每个 agent 一份拷贝）。
 set -euo pipefail
 
 agent="" socket="" net="none" state_root="${HEDDLE_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/heddle}"
-workspace="" extra_ro=() fresh=0
-usage() { sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+workspace="" extra_ro=() fresh=0 usr=/usr
+usage() { sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --agent) agent="$2"; shift 2 ;;
@@ -21,6 +23,7 @@ while [[ $# -gt 0 ]]; do
     --workspace) workspace="$2"; shift 2 ;;
     --ro) extra_ro+=("$2"); shift 2 ;;
     --fresh) fresh=1; shift ;;
+    --usr) usr="$2"; shift 2 ;;
     -h|--help) usage 0 ;;
     --) shift; break ;;
     *) echo "heddle-run: unknown option $1" >&2; usage 1 ;;
@@ -43,7 +46,7 @@ args=(
   --die-with-parent --new-session
   --unshare-pid --unshare-ipc --unshare-uts --unshare-cgroup-try
   --hostname "heddle-$agent"
-  --ro-bind /usr /usr
+  --ro-bind "$usr" /usr
   --ro-bind /etc /etc
   --proc /proc
   --dev /dev
