@@ -2,7 +2,7 @@ project('heddle', 'c',
   version: '0.1.0',
   default_options: ['c_std=c11', 'warning_level=2', 'werror=false'])
 
-add_project_arguments('-DWLR_USE_UNSTABLE', '-Wno-unused-parameter', language: 'c')
+add_project_arguments('-DWLR_USE_UNSTABLE', '-D_GNU_SOURCE', '-Wno-unused-parameter', language: 'c')
 
 wlroots = dependency('wlroots-0.18')
 wayland_server = dependency('wayland-server')
@@ -18,6 +18,19 @@ xdg_shell_h = custom_target('xdg-shell-protocol.h',
   output: 'xdg-shell-protocol.h',
   command: [wayland_scanner, 'server-header', '@INPUT@', '@OUTPUT@'])
 
-executable('heddle', 'heddle.c', xdg_shell_h,
+sources = files(
+  'src/main.c',
+  'src/agent.c',
+  'src/frame.c',
+  'src/screenshot.c',
+  'src/window.c',
+  'src/input.c',
+  'src/control.c',
+  'src/commands.c',
+  'src/json.c',
+  'src/util.c',
+)
+
+executable('heddle', sources, xdg_shell_h,
   dependencies: [wlroots, wayland_server, xkbcommon, pixman, libpng, libdrm],
   install: true)

@@ -1,6 +1,21 @@
 # heddle 合成器
 
-计划第 2、3 步的原型：基于 wlroots 0.18 的无头合成器，单个 C 文件。起点按 tinywl 的结构自写（原 README "Open" 中三选一的结果，现列在 "Decided"，理由见下）。
+计划第 2、3 步的原型：基于 wlroots 0.18 的无头合成器。起点按 tinywl 的结构自写（原 README "Open" 中三选一的结果，现列在 "Decided"，理由见下）。
+
+## 源码
+
+| 文件 | 内容 |
+|---|---|
+| [src/heddle.h](src/heddle.h) | 核心类型：`server`、`agent`、`client_info` |
+| [src/main.c](src/main.c) | 参数解析、创建 display/后端/全局对象、退出清理 |
+| [src/agent.c](src/agent.c) | 每个 agent 的套接字、无头输出、场景图；客户端归属与全局对象过滤 |
+| [src/frame.c](src/frame.c) | 出帧策略（放行/停帧、grace）；表面提交的损坏统计 |
+| [src/screenshot.c](src/screenshot.c) | 截图稳定判定与 PNG 编码 |
+| [src/window.c](src/window.c) | xdg toplevel / popup、焦点、命中测试 |
+| [src/input.c](src/input.c) | seat、指针、键盘、按键名解析、逐字符敲入 |
+| [src/control.c](src/control.c) | 控制套接字：连接、按行读、回复、截图挂起 |
+| [src/commands.c](src/commands.c) | 控制命令表与各命令实现（加命令只改这里） |
+| [src/json.c](src/json.c)、[src/util.c](src/util.c) | JSON 字符串拼接；时钟、Unix 套接字等小工具 |
 
 ## 构建与运行
 
