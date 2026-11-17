@@ -15,7 +15,7 @@ for rep in $(seq "$REPS"); do
   for n in $NS; do
     for app in textedit writer chromium; do
       for cfg in shared per-comp per-usr; do
-        pkill -9 -f 'chromium|soffice|gnome-text-editor|dbus-daemon|heddle-build/heddle' 2>/dev/null || true
+        pkill -9 -x 'chromium|soffice.bin|oosplash|gnome-text-edit|dbus-daemon|heddle' 2>/dev/null || true
         sleep 2
         echo "== rep$rep n=$n $app $cfg $(date +%T)" >&2
         timeout 900 python3 bench/memcurve.py --heddle "$B/heddle" --app "$app" --config "$cfg" -n "$n" \
