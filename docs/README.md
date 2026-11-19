@@ -8,6 +8,7 @@
 | [隔离与共享](isolation.md) | 多 agent 共用一个合成器、应用状态隔离、XDG 与 D-Bus、内存共享 |
 | [研究方法](method.md) | 移植已有方案再找新问题的方法、候选方案表、负载选择 |
 | [门槛实验](gate.md) | Heddle always 对照 observe 的实测结果与暂定结论 |
+| [匿名页重复与压缩](ksm.md) | N 个同构 agent 的匿名页按页合并、按页压缩、整体压缩、模板差分各能省多少，地址随机化的影响 |
 | [内存曲线](memory.md) | N 个 agent 下共享合成器、共享 /usr 各省多少；内存上限下的缺页、读盘与步耗时 |
 
 除标为"已测"的条目外，均为分析或设计提案，未经验证。实测数据来自 SandWeaver 的 [characterization](https://github.com/aeilot/SandWeaver/blob/main/docs/characterization.md)。
