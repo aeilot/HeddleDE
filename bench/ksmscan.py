@@ -144,7 +144,7 @@ def scan(pids, group_of, prev=None, keep=False):
                         p = pages.get(pfn)
                         if p is None:
                             pages[pfn] = [h, group_of[pid], comm, kind, stable,
-                                          page if keep and h != b"0" else None]
+                                          page if keep and h != b"0" else None, pid, a]
                         elif stable:
                             p[4] = True
                     addr += chunk
@@ -270,6 +270,8 @@ def main():
     ap.add_argument("-n", type=int, default=8)
     ap.add_argument("--settle", type=float, default=15)
     ap.add_argument("--gap", type=float, default=20, help="两次扫描之间的等待")
+    ap.add_argument("--anatomy", action="store_true", help="按进程角色、内存区、页内容拆分匿名内存")
+    ap.add_argument("--no-compress", action="store_true", help="跳过压缩统计")
     ap.add_argument("--no-aslr", action="store_true",
                     help="用 setarch -R 关闭应用的地址随机化（指针相同的页才可能跨进程相同）")
     ap.add_argument("--label", default="")
@@ -337,6 +339,10 @@ def main():
     g2 = groups()
     freeze(cg, True)
     pages2, _, err2 = scan(list(g2), g2, prev=addr1, keep=True)
+    infos = {}
+    if a.anatomy:
+        from anatomy import process_info
+        infos = {pid: process_info(pid) for pid in g2}
     freeze(cg, False)
 
     rec = {"app": a.app, "n": a.n, "aslr": not a.no_aslr, "label": a.label, "windows_up": up, "procs": len(g2),
@@ -349,7 +355,11 @@ def main():
         kill_tree(launchers[x].pid)
     kill_tree(comp.pid)
     t0 = time.monotonic()
-    rec["compression"] = compression(pages2, agents)
+    if not a.no_compress:
+        rec["compression"] = compression(pages2, agents)
+    if a.anatomy:
+        from anatomy import anatomy
+        rec["anatomy"] = anatomy(pages2, infos, agents)
     rec["compression_s"] = round(time.monotonic() - t0, 1)
     del pages2
     shutil.rmtree(rt, ignore_errors=True)
@@ -370,8 +380,13 @@ def main():
           f"{s['save_nonzero_within_mib']}, nonzero cross-agent {s['save_nonzero_cross_mib']}); "
           f"stable mergeable {st.get('save_all_mib')} MiB; scan {rec['scan_s']} s, errors {rec['read_errors']}",
           file=sys.stderr)
-    c = rec["compression"]
-    print("  per extra agent (MiB): " + ", ".join(f"{k} {v['other_avg_mib']}" for k, v in c.items())
+    if "anatomy" in rec:
+        an = rec["anatomy"]
+        for key in ("by_role_mib", "by_mapping_mib", "by_content_mib", "content_lz4_ratio"):
+            print(f"  {key}: " + ", ".join(f"{k} {v}" for k, v in list(an[key].items())[:8]), file=sys.stderr)
+    c = rec.get("compression")
+    if c:
+        print("  per extra agent (MiB): " + ", ".join(f"{k} {v['other_avg_mib']}" for k, v in c.items())
           + f"; first agent stream {c['stream']['first_mib']}; took {rec['compression_s']} s", file=sys.stderr)
 
 

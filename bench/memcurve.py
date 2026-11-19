@@ -36,6 +36,10 @@ APPS = {
                  "--no-default-browser-check --password-store=basic "
                  f"--user-data-dir=/tmp/chromium-profile file://{PAGES}/form.html"),
     "textedit": "gnome-text-editor --standalone",
+    # 逐项关掉的对照：GSK 用 cairo 软件渲染（不走 GL/llvmpipe）；关掉 GTK4 的无障碍
+    "textedit-cairo": "env GSK_RENDERER=cairo gnome-text-editor --standalone",
+    "textedit-noa11y": "env GTK_A11Y=none gnome-text-editor --standalone",
+    "textedit-cairo-noa11y": "env GSK_RENDERER=cairo GTK_A11Y=none gnome-text-editor --standalone",
     "writer": "env SAL_USE_VCLPLUGIN=gtk3 soffice --writer --norestore --nologo",
 }
 ACTIONS = ["type:Agent notes for the quarterly review", "key:Return", "type:Second line of text"]
